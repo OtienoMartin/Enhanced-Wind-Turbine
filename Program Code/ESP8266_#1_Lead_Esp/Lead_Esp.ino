@@ -38,7 +38,7 @@ void setup() {
             // by the SCALE parameter (not set yet)
            
   scale.set_scale(790.4571429);
-  //scale.set_scale(894.3571429);  // this value is obtained by calibrating the scale with known weights; see the README for details
+  //scale.set_scale(790.4571429);  // this value is obtained by calibrating the scale with known weights; see the README for details
   scale.tare();               // reset the scale to 0
 
   Serial.println("After setting up the scale:");
@@ -69,17 +69,24 @@ void loop() {
 
   Serial.print("one reading:\t"); 
   Serial.println(weight, 1);
-  Serial.println(" g");
+  Serial.println(" m/s");
 
   if (weight <= 0) {
     digitalWrite(D1, LOW);
     digitalWrite(D2, LOW);
-  } else if (weight > 25 && weight <= 140) {
+	Serial.println(" Isufficient Speed");
+  } 
+  
+    else if (weight > 25 && weight <= 140) {
     digitalWrite(D1, HIGH);
     digitalWrite(D2, LOW);
-  } else if (weight > 140 && weight <= 1100) {
+	Serial.println(" Optimum Speed");
+  } 
+  
+  else if (weight > 140 && weight <= 1100) {
     digitalWrite(D1, HIGH);
     digitalWrite(D2, HIGH);
+	Serial.println(" Overspeed, Brakes ON");
   }
 
   scale.power_down();  // put the ADC in sleep mode
