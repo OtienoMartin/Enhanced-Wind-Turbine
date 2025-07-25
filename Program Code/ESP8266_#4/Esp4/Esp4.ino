@@ -8,10 +8,11 @@ const int LOADCELL_DOUT_PIN = 12;
 const int LOADCELL_SCK_PIN = 13;
 
 float weight; 
-float calibration_factor = 792.1    ; // enter the calibration factor obtained earlier
+float calibration_factor = 790.4571429    ; // enter the calibration factor obtained earlier
 
 //Pin wiring
-int green=D1;
+int green = D1;
+int red = D2;
 
 HX711 scale;
 
@@ -36,8 +37,8 @@ void setup() {
   Serial.println(scale.get_units(5), 1);  // print the average of 5 readings from the ADC minus tare weight (not set) divided
             // by the SCALE parameter (not set yet)
            
-  scale.set_scale(792.1);
-  //scale.set_scale(894.3571429);  // this value is obtained by calibrating the scale with known weights; see the README for details
+  scale.set_scale(790.4571429); 
+  //scale.set_scale(790.4571429);  // this value is obtained by calibrating the scale with known weights; see the README for details
   scale.tare();               // reset the scale to 0
 
   Serial.println("After setting up the scale:");
@@ -65,6 +66,12 @@ void setup() {
 
 void loop() {
   float weight = scale.get_units(10); // average of 10 readings
+
+  // === Clamp small values near zero to exactly zero ===
+  // This ensures that when the load is removed (or nearly zero), no residual noise appears as a reading
+  if (abs(weight) < 1.0) {  // You can adjust the threshold (1.0) if needed
+    weight = 0;
+  }
 
   Serial.print("one reading:\t"); 
   Serial.println(weight, 1);

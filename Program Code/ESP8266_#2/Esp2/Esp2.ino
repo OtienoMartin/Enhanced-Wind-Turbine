@@ -11,7 +11,8 @@ float weight;
 float calibration_factor = 772.5142857    ; // enter the calibration factor obtained earlier
 
 //Pin wiring
-int green=D1;
+int green = D1;
+int red = D2;
 
 HX711 scale;
 
@@ -37,7 +38,7 @@ void setup() {
             // by the SCALE parameter (not set yet)
            
   scale.set_scale(772.5142857); 
-  //scale.set_scale(894.3571429);  // this value is obtained by calibrating the scale with known weights; see the README for details
+  //scale.set_scale(772.5142857);  // this value is obtained by calibrating the scale with known weights; see the README for details
   scale.tare();               // reset the scale to 0
 
   Serial.println("After setting up the scale:");
@@ -65,6 +66,12 @@ void setup() {
 
 void loop() {
   float weight = scale.get_units(10); // average of 10 readings
+
+  // === Clamp small values near zero to exactly zero ===
+  // This ensures that when the load is removed (or nearly zero), no residual noise appears as a reading
+  if (abs(weight) < 1.0) {  // You can adjust the threshold (1.0) if needed
+    weight = 0;
+  }
 
   Serial.print("one reading:\t"); 
   Serial.println(weight, 1);
