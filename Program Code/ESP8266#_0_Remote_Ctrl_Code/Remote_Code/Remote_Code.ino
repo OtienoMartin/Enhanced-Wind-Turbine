@@ -2,6 +2,14 @@
 #include <Arduino.h>
 #include "HX711.h"
 #include <stdlib.h>
+#include <ThingSpeak.h>
+#include <ESP8266WiFi.h>
+
+WiFiClient  client;
+unsigned long counterChannelNumber = 3019455;                // Channel ID
+const char * myCounterReadAPIKey = "K4DO472XCRON3J78";      // Read API Key
+const int FieldNumber1 = 1;                                 // The field you wish to read
+const int FieldNumber2 = 2;                                 // The field you wish to read
 
 // HX711 circuit wiring
 const int LOADCELL_DOUT_PIN = 12;
@@ -24,9 +32,23 @@ int blue = D5;
 HX711 scale;
 
 void setup() {
+  pinMode(D5,OUTPUT);
   Serial.begin(9600);
   Serial.println("HX711 Demo");
   Serial.println("Initializing the scale");
+
+  WiFi.begin("Space, Time & Gravity", "Wilhelm&30");                 // write wifi name & password 
+
+  Serial.print("Connecting");
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println();
+  Serial.print("Connected, IP address: ");
+  Serial.println(WiFi.localIP());
+  ThingSpeak.begin(client);
 
   scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
 
@@ -69,6 +91,10 @@ void setup() {
 }
 
 void loop() {
+  int A = ThingSpeak.readLongField(counterChannelNumber, FieldNumber1, myCounterReadAPIKey);
+ Serial.println(A);
+ digitalWrite(D5,A);
+  
   float weight = scale.get_units(10); // average of 10 readings
 
   // === Clamp small values near zero to exactly zero ===
@@ -90,7 +116,7 @@ void loop() {
     digitalWrite(D1, HIGH);
     digitalWrite(D2, LOW);
     Serial.println(" Optimum Speed");
-  } 
+  }  
   else if (weight > 140 && weight <= 1100) {
     digitalWrite(D1, HIGH);
     digitalWrite(D2, HIGH);
