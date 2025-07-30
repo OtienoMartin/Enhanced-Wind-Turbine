@@ -1,129 +1,122 @@
-#include <SoftwareSerial.h>
 #include <Arduino.h>
 #include "HX711.h"
-#include <stdlib.h>
 #include <ThingSpeak.h>
 #include <ESP8266WiFi.h>
 
-WiFiClient  client;
-unsigned long counterChannelNumber = 3019455;                // Channel ID
-const char * myCounterReadAPIKey = "K4DO472XCRON3J78";      // Read API Key
-const int FieldNumber1 = 1;                                 // The field you wish to read
-const int FieldNumber2 = 2;                                 // The field you wish to read
+// === WiFi Credentials ===
+const char* ssid = "Space, Time & Gravity";
+const char* password = "Wilhelm&30";
 
-// HX711 circuit wiring
-const int LOADCELL_DOUT_PIN = 12;
-const int LOADCELL_SCK_PIN = 13;
+// === ThingSpeak Settings ===
+WiFiClient client;
+unsigned long counterChannelNumber = 3019455;
+const char* myCounterReadAPIKey = "K4DO472XCRON3J78";
+const int FieldNumber1 = 1;
 
+// === HX711 Pins (D6 = GPIO12, D7 = GPIO13) ===
+const int LOADCELL_DOUT_PIN = D6;
+const int LOADCELL_SCK_PIN  = D7;
+float calibration_factor = 790.4571429;
 float weight;
-float calibration_factor = 790.4571429; // enter the calibration factor obtained earlier
 
-// Pin wiring
-int green = D1;
-int red = D2;
-int blue = D5;
+// === Output Pins ===
+const int LOCK_PIN  = D1; // Green — locks assembly
+const int BRAKE_PIN = D2; // Red — brake control
+const int POWER_PIN = D5; // Blue — remote control
 
-/*
-   D1 powers the locking mechanism which inturn powers the assembly rotation.
-   D2 powers the electric breaking system. It has remote functionality too.
-   D5 powers the remotepower on/off. 
- */
+// === Timing Intervals (in milliseconds) ===
+unsigned long lastThingSpeakRead = 0;
+const unsigned long readInterval = 5000;     // Remote command read every 5s
 
+unsigned long lastWeightRead = 0;
+const unsigned long weightInterval = 1000;   // Weight reading every 1s
+
+// === HX711 Object ===
 HX711 scale;
 
+// === Setup ===
 void setup() {
-  pinMode(D5,OUTPUT);
   Serial.begin(9600);
-  Serial.println("HX711 Demo");
-  Serial.println("Initializing the scale");
+  delay(100);
 
-  WiFi.begin("Space, Time & Gravity", "Wilhelm&30");                 // write wifi name & password 
+  pinMode(LOCK_PIN, OUTPUT);
+  pinMode(BRAKE_PIN, OUTPUT);
+  pinMode(POWER_PIN, OUTPUT);
 
-  Serial.print("Connecting");
-  while (WiFi.status() != WL_CONNECTED)
-  {
+  Serial.println("Connecting to WiFi...");
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
   }
-  Serial.println();
-  Serial.print("Connected, IP address: ");
-  Serial.println(WiFi.localIP());
+  Serial.println("\nConnected. IP: " + WiFi.localIP().toString());
+
   ThingSpeak.begin(client);
 
   scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
-
-  Serial.println("Before setting up the scale:");
-  Serial.print("read: \t\t");
-  Serial.println(scale.read());
-
-  Serial.print("read average: \t\t");
-  Serial.println(scale.read_average(20));
-
-  Serial.print("get value: \t\t");
-  Serial.println(scale.get_value(5));
-
-  Serial.print("get units: \t\t");
-  Serial.println(scale.get_units(5), 1);
-
-  scale.set_scale(790.4571429);
-  //scale.set_scale(790.4571429);  // this value is obtained by calibrating the scale with known weights; see the README for details
-  scale.tare(); // reset the scale to 0
-
-  Serial.println("After setting up the scale:");
-  Serial.print("read: \t\t");
-  Serial.println(scale.read());
-
-  Serial.print("read average: \t\t");
-  Serial.println(scale.read_average(20));
-
-  Serial.print("get value: \t\t");
-  Serial.println(scale.get_value(5));
-
-  Serial.print("get units: \t\t");
-  Serial.println(scale.get_units(5), 1);
-
-  long zero_factor = scale.read_average();
-
-  Serial.println("weight:");
-  pinMode(D1, OUTPUT);
-  pinMode(D2, OUTPUT);
-  pinMode(D5, OUTPUT);
+  scale.set_scale(calibration_factor);
+  scale.tare();
+  Serial.println("Scale initialized.");
 }
 
-void loop() {
+// === Remote Control Handler (D5) ===
+void handleRemoteControl() {
   int A = ThingSpeak.readLongField(counterChannelNumber, FieldNumber1, myCounterReadAPIKey);
- Serial.println(A);
- digitalWrite(D5,A);
-  
-  float weight = scale.get_units(10); // average of 10 readings
+  Serial.print("Remote Power Command (A): ");
+  Serial.println(A);
 
-  // === Clamp small values near zero to exactly zero ===
-  // This ensures that when the load is removed (or nearly zero), no residual noise appears as a reading
-  if (abs(weight) < 1.0) {  // You can adjust the threshold (1.0) if needed
+  if (A == 0 || A == 1) {
+    digitalWrite(POWER_PIN, A);
+  } else {
+    Serial.println("Invalid value received from ThingSpeak.");
+  }
+}
+
+// === Load Cell Logic (D1 & D2) ===
+void handleWeightLogic() {
+  weight = scale.get_units(3); // faster average
+
+  // Clamp near-zero noise
+  if (abs(weight) < 1.0) {
     weight = 0;
   }
 
-  Serial.print("one reading:\t");
-  Serial.println(weight, 1);
-  Serial.println(" m/s");
+  Serial.print("Weight: ");
+  Serial.print(weight, 1);
+  Serial.println(" kg");
 
   if (weight <= 0) {
-    digitalWrite(D1, LOW);
-    digitalWrite(D2, LOW);
-    Serial.println(" Insufficient Speed");
-  } 
-  else if (weight > 25 && weight <= 140) {
-    digitalWrite(D1, HIGH);
-    digitalWrite(D2, LOW);
-    Serial.println(" Optimum Speed");
-  }  
-  else if (weight > 140 && weight <= 1100) {
-    digitalWrite(D1, HIGH);
-    digitalWrite(D2, HIGH);
-    Serial.println(" Overspeed, Brakes ON");
+    digitalWrite(LOCK_PIN, LOW);
+    digitalWrite(BRAKE_PIN, LOW);
+    Serial.println("Status: Insufficient Speed");
+  } else if (weight > 25 && weight <= 140) {
+    digitalWrite(LOCK_PIN, HIGH);
+    digitalWrite(BRAKE_PIN, LOW);
+    Serial.println("Status: Optimum Speed");
+  } else if (weight > 140 && weight <= 1100) {
+    digitalWrite(LOCK_PIN, HIGH);
+    digitalWrite(BRAKE_PIN, HIGH);
+    Serial.println("Status: Overspeed, Brakes ON");
   }
 
-  scale.power_down();  // put the ADC in sleep mode
-  delay(150);
+  scale.power_down();
+  delay(100);
   scale.power_up();
+}
+
+// === Main Loop ===
+void loop() {
+  unsigned long now = millis();
+
+  // Check remote power control
+  if (now - lastThingSpeakRead >= readInterval) {
+    handleRemoteControl();
+    lastThingSpeakRead = now;
+  }
+
+  // Check weight logic
+  if (now - lastWeightRead >= weightInterval) {
+    handleWeightLogic();
+    lastWeightRead = now;
+  }
 }
