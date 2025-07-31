@@ -29,6 +29,9 @@ float calibration_factor = 790.4571429;
 
 BlynkTimer timer;  // Timer for sending data to Blynk
 
+bool alertSent = false;
+bool shutdownSent = false;
+
 // V0 → On/Off button for LED on D5
 BLYNK_WRITE(V0)
 {
@@ -82,20 +85,35 @@ void loop() {
   if (speed <= 0) {
     digitalWrite(green, LOW);
     Serial.println("Insufficient Speed");
+    alertSent = false;
+    shutdownSent = false;
   } 
   else if (speed > 25 && speed <= 140) {
     digitalWrite(green, HIGH);
     Serial.println("Optimum Speed");
+    alertSent = false;
+    shutdownSent = false;
   } 
   else if (speed > 140 && speed <= 1100) {
     digitalWrite(green, HIGH);
     Serial.println("Overspeed, Brakes ON");
-    
-    // 🔔 Push notification via Blynk Event
-    Blynk.logEvent("overspeed_alert", String("Speed reached ") + speed + " m/s");
+
+    if (!alertSent) {
+      Blynk.logEvent("overspeed_alert", String("Speed reached ") + speed + " m/s");
+      alertSent = true;
+    }
+    shutdownSent = false;
   } 
-  else {
+  else if (speed > 1100) {
     digitalWrite(green, LOW);
+    digitalWrite(ledPin, LOW);  // Emergency shutdown
+    Serial.println("⚠️ Emergency Shutdown Activated!");
+
+    if (!shutdownSent) {
+      Blynk.logEvent("emergency_shutdown", String("Speed exceeded safe limit: ") + speed + " m/s. System shut down.");
+      shutdownSent = true;
+    }
+    alertSent = false;
   }
 
   // Sleep HX711 briefly
