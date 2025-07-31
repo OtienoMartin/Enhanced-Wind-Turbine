@@ -85,18 +85,21 @@ void loop() {
   if (speed <= 0) {
     digitalWrite(green, LOW);
     Serial.println("Insufficient Speed");
+    Blynk.virtualWrite(V3, "Insufficient Speed");
     alertSent = false;
     shutdownSent = false;
   } 
   else if (speed > 25 && speed <= 140) {
     digitalWrite(green, HIGH);
     Serial.println("Optimum Speed");
+    Blynk.virtualWrite(V3, "Optimum Speed");
     alertSent = false;
     shutdownSent = false;
   } 
   else if (speed > 140 && speed <= 1100) {
     digitalWrite(green, HIGH);
-    Serial.println("Overspeed, Brakes ON");
+    Serial.println("Brakes ON");
+    Blynk.virtualWrite(V3, "Brakes ON");
 
     if (!alertSent) {
       Blynk.logEvent("overspeed_alert", String("Speed reached ") + speed + " m/s");
@@ -108,6 +111,7 @@ void loop() {
     digitalWrite(green, LOW);
     digitalWrite(ledPin, LOW);  // Emergency shutdown
     Serial.println("⚠️ Emergency Shutdown Activated!");
+    Blynk.virtualWrite(V3, "⚠ Emer Shutdown");
 
     if (!shutdownSent) {
       Blynk.logEvent("emergency_shutdown", String("Speed exceeded safe limit: ") + speed + " m/s. System shut down.");
