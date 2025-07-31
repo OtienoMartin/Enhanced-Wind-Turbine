@@ -27,7 +27,7 @@ HX711 scale;
 float speed;
 float calibration_factor = 790.4571429;
 
-BlynkTimer timer;  // Timer for sending data to Blynk
+BlynkTimer timer;
 
 bool alertSent = false;
 bool shutdownSent = false;
@@ -42,50 +42,32 @@ BLYNK_WRITE(V0)
 // V1 → Slider to control brightness of LED on D2
 BLYNK_WRITE(V1)
 {
-  int brightness = param.asInt();         // 0–255
-  analogWrite(pwmLed, brightness);        // Set PWM brightness
+  int brightness = param.asInt();         
+  analogWrite(pwmLed, brightness);        
 }
 
-// Send wind speed to Blynk label widget on V2
+// V2 → Display wind speed
 void sendSpeedToBlynk() {
-  Blynk.virtualWrite(V2, speed);  // Send speed to app
+  Blynk.virtualWrite(V2, speed);  
 }
 
-void setup() {
-  Serial.begin(9600);
-  Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
-
-  // Set pin modes
-  pinMode(ledPin, OUTPUT);
-  pinMode(green, OUTPUT);
-  pinMode(pwmLed, OUTPUT);
-  digitalWrite(ledPin, LOW);
-  analogWrite(pwmLed, 0);
-
-  // Initialize load cell
-  scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
-  scale.set_scale(calibration_factor);
-  scale.tare();
-
-  // Send wind speed to app every 1 second
-  timer.setInterval(1000L, sendSpeedToBlynk);
-}
-
-void loop() {
-  Blynk.run();
-  timer.run();  // Important for BlynkTimer
-
-  // Read speed value from HX711
+// V3 → Update system status
+void readSpeedAndUpdateStatus() {
   speed = scale.get_units();
+
+  // Force small drifts to zero
+  if (abs(speed) < 0.9) {
+    speed = 0.0;
+  }
+
   Serial.print("Speed reading:\t");
   Serial.print(speed, 1);
   Serial.println(" m/s");
 
-  // Decision logic based on speed
-  if (speed <= 0) {
+  if (speed == 0.0) {
     digitalWrite(green, LOW);
     Serial.println("Insufficient Speed");
-    Blynk.virtualWrite(V3, "Insufficient Speed");
+    Blynk.virtualWrite(V3, "Low Speed");
     alertSent = false;
     shutdownSent = false;
   } 
@@ -96,7 +78,7 @@ void loop() {
     alertSent = false;
     shutdownSent = false;
   } 
-  else if (speed > 140 && speed <= 1100) {
+  else if (speed > 140 && speed <= 200) {
     digitalWrite(green, HIGH);
     Serial.println("Brakes ON");
     Blynk.virtualWrite(V3, "Brakes ON");
@@ -107,11 +89,11 @@ void loop() {
     }
     shutdownSent = false;
   } 
-  else if (speed > 1100) {
+  else if (speed > 200) {
     digitalWrite(green, LOW);
-    digitalWrite(ledPin, LOW);  // Emergency shutdown
+    digitalWrite(ledPin, LOW);  
     Serial.println("⚠️ Emergency Shutdown Activated!");
-    Blynk.virtualWrite(V3, "⚠ Emer Shutdown");
+    Blynk.virtualWrite(V3, "⚠ SHUTDOWN");
 
     if (!shutdownSent) {
       Blynk.logEvent("emergency_shutdown", String("Speed exceeded safe limit: ") + speed + " m/s. System shut down.");
@@ -120,8 +102,31 @@ void loop() {
     alertSent = false;
   }
 
-  // Sleep HX711 briefly
   scale.power_down();
-  delay(150);
+  delayMicroseconds(150000);  // 150 ms
   scale.power_up();
+}
+
+void setup() {
+  Serial.begin(9600);
+  Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
+
+  pinMode(ledPin, OUTPUT);
+  pinMode(green, OUTPUT);
+  pinMode(pwmLed, OUTPUT);
+  digitalWrite(ledPin, LOW);
+  analogWrite(pwmLed, 0);
+
+  scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
+  scale.set_scale(calibration_factor);
+  scale.tare();
+
+  // Timers
+  timer.setInterval(1000L, sendSpeedToBlynk);
+  timer.setInterval(1000L, readSpeedAndUpdateStatus);
+}
+
+void loop() {
+  Blynk.run();
+  timer.run();
 }
