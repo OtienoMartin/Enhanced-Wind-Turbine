@@ -90,6 +90,9 @@ void loop() {
   else if (speed > 140 && speed <= 1100) {
     digitalWrite(green, HIGH);
     Serial.println("Overspeed, Brakes ON");
+    
+    // 🔔 Push notification via Blynk Event
+    Blynk.logEvent("overspeed_alert", String("Speed reached ") + speed + " m/s");
   } 
   else {
     digitalWrite(green, LOW);
