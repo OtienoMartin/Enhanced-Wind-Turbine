@@ -66,20 +66,21 @@ void readSpeedAndUpdateStatus() {
 
   if (speed == 0.0) {
     digitalWrite(green, LOW);
-    Serial.println("Insufficient Speed");
+    Serial.println("Low Speed");
     Blynk.virtualWrite(V3, "Low Speed");
     alertSent = false;
     shutdownSent = false;
   } 
-  else if (speed > 25 && speed <= 140) {
+  else if (speed > 25 && speed <= 100) {
     digitalWrite(green, HIGH);
     Serial.println("Optimum Speed");
     Blynk.virtualWrite(V3, "Optimum Speed");
     alertSent = false;
     shutdownSent = false;
   } 
-  else if (speed > 140 && speed <= 200) {
-    digitalWrite(green, HIGH);
+  else if (speed > 100 && speed <= 150) {
+    digitalWrite(green, HIGH); 
+    digitalWrite(pwmLed, HIGH);
     Serial.println("Brakes ON");
     Blynk.virtualWrite(V3, "Brakes ON");
 
@@ -89,7 +90,7 @@ void readSpeedAndUpdateStatus() {
     }
     shutdownSent = false;
   } 
-  else if (speed > 200) {
+  else if (speed > 150) {
     digitalWrite(green, LOW);
     digitalWrite(ledPin, LOW);  
     Serial.println("⚠️ Emergency Shutdown Activated!");
